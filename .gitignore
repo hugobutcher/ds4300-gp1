@@ -1,0 +1,17 @@
+# dataset: never commit
+data/
+
+# python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+
+# jupyter
+.ipynb_checkpoints/
+
+# editors / OS
+.idea/
+.vscode/
+.DS_Store
+*.swp

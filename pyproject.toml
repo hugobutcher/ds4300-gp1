@@ -1,0 +1,10 @@
+[project]
+name = "ds4300-practical-01"
+version = "2026.9"
+description = "DS4300 Practical 1: index structures on Spotify data"
+requires-python = ">=3.13"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
