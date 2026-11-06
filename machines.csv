@@ -1,3 +1,4 @@
 machine_id,member,computer_model,cpu_model,cpu_cores,ram_gb,os,docker_cpus,docker_memory_gb,power
 hugo-mbp,hugo,"MacBook Pro 14"" 2023",Apple M2 Pro,10,16,macOS 15.6.1,10,8,plugged in
 ray-pc,ray,Dell Inc. Inspiron 16 5640,Intel(R) Core(TM) 7 150U,10,32,Microsoft Windows 11 Pro 10.0.26200,12,15.5,plugged in
+luke-mbp16,luke,MacBook Pro 16-inch 2023,Apple M2 Pro,12,16,macOS 26.5.2,12,8,plugged in
