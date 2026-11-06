@@ -1,1 +1,2 @@
 machine_id,member,computer_model,cpu_model,cpu_cores,ram_gb,os,docker_cpus,docker_memory_gb,power
+hugo-mbp,hugo,"MacBook Pro 14"" 2023",Apple M2 Pro,10,16,macOS 15.6.1,10,8,plugged in

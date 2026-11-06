@@ -33,7 +33,25 @@ def random_keys(
     Raise ``ValueError`` if ``n`` is larger than the number of possible
     strings (``len(alphabet) ** length``).
     """
-    raise NotImplementedError
+    base = len(alphabet)
+    space = base ** length
+    if n > space:
+        raise ValueError(
+            f"cannot make {n} distinct strings of length {length} "
+            f"from a {base}-char alphabet (only {space} exist)"
+        )
+
+    rng = random.Random(seed)
+    indices = rng.sample(range(space), n)
+
+    keys = []
+    for idx in indices:
+        chars = []
+        for _ in range(length):
+            idx, remainder = divmod(idx, base)
+            chars.append(alphabet[remainder])
+        keys.append("".join(reversed(chars)))
+    return keys
 
 
 def arrange(
@@ -53,7 +71,27 @@ def arrange(
 
     Raise ``ValueError`` for any other ``order``.
     """
-    raise NotImplementedError
+    rng = random.Random(seed)
+    result = list(keys)
+
+    if order == "random":
+        rng.shuffle(result)
+    elif order == "sorted":
+        result.sort()
+    elif order == "reversed":
+        result.sort(reverse=True)
+    elif order == "nearly_sorted":
+        result.sort()
+        n = len(result)
+        num_swaps = round(swap_fraction * n)
+        for _ in range(num_swaps):
+            i = rng.randrange(n)
+            j = rng.randrange(n)
+            result[i], result[j] = result[j], result[i]
+    else:
+        raise ValueError(f"unknown order: {order!r}")
+
+    return result
 
 
 def point_queries(
@@ -69,7 +107,26 @@ def point_queries(
     strings that are guaranteed NOT to be in ``keys``, each the same length as
     a randomly chosen key from ``keys``.
     """
-    raise NotImplementedError
+    rng = random.Random(seed)
+    key_list = list(keys)
+    key_set = set(key_list)
+
+    n_hits = round(n_queries * hit_rate)
+    n_misses = n_queries - n_hits
+
+    queries = [rng.choice(key_list) for _ in range(n_hits)]
+
+    alphabet = string.ascii_lowercase
+    for _ in range(n_misses):
+        target_len = len(rng.choice(key_list))
+        while True:
+            candidate = "".join(rng.choice(alphabet) for _ in range(target_len))
+            if candidate not in key_set:
+                break
+        queries.append(candidate)
+
+    rng.shuffle(queries)
+    return queries
 
 
 def range_queries(
@@ -86,7 +143,20 @@ def range_queries(
     positions later as ``hi``. So exactly ``w`` distinct keys satisfy
     ``lo <= key <= hi``. Works for any comparable keys (strings or numbers).
     """
-    raise NotImplementedError
+    rng = random.Random(seed)
+    distinct = sorted(set(keys))
+    d = len(distinct)
+    w = max(1, round(selectivity * d))
+
+    max_start = d - w
+
+    queries = []
+    for _ in range(n_queries):
+        start = rng.randint(0, max_start)
+        lo = distinct[start]
+        hi = distinct[start + w - 1]
+        queries.append((lo, hi))
+    return queries
 
 
 def prefix_queries(
@@ -101,4 +171,6 @@ def prefix_queries(
     key that is at least ``prefix_length`` characters long, so every prefix
     matches at least one key.
     """
-    raise NotImplementedError
+    rng = random.Random(seed)
+    eligible = [k for k in keys if len(k) >= prefix_length]
+    return [rng.choice(eligible)[:prefix_length] for _ in range(n_queries)]
