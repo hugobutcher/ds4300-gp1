@@ -68,9 +68,46 @@ def example_point_lookups(writer: ResultsWriter, tracks: list[dict], reps: int) 
             print(f"  n={n:>7,}  {name:<14} done", flush=True)
 
 
+def e1_build(writer, tracks, reps):
+    """E1: How does build cost grow with n? How much memory does each index use?
+
+    Minimum design: track_id in file order; at least 6 sizes from 1,000 to 114,000;
+    record memory_bytes
+    """
+    # Get every (track_id, row number) pair, in the same order as the file
+    pairs = key_value_pairs(tracks, "track_id")
+
+    # Try each dataset size, from small to all 114,000 songs
+    for n in [1000, 2000, 5000, 10000, 20000, 40000, 80000, 114000]:
+        # Use only the first n songs
+        data = pairs[:n]
+
+        # Test each of the 7 indexes
+        for name in ALL_INDEXES:
+            # Measure memory once, on its own, because measuring memory slows things down
+            memory = build_memory_bytes(lambda: make_index(name), data)
+
+            # Repeat the timing several times to see how much it varies
+            for rep in range(reps):
+                # Start with a brand new, empty index every time
+                index = make_index(name)
+
+                # Load all n songs into the index and time how long it takes
+                ns = time_build(index, data)
+
+                # Save one row to results/timings.csv describing this measurement
+                writer.record(
+                    index, experiment="E1_build", dataset="spotify",
+                    key_column="track_id", insert_order="file",
+                    n_keys=n, operation="build", operation_param="",
+                    n_ops=n, rep=rep, total_ns=ns, memory_bytes=memory,
+                )
+
+
 # Register experiments here: name -> function(writer, tracks, reps).
 EXPERIMENTS: dict[str, Callable[[ResultsWriter, list[dict], int], None]] = {
     "example": example_point_lookups,
+    "E1_build": e1_build,  # E1: build cost and memory as n grows
 }
 
 
