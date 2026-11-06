@@ -28,6 +28,7 @@ from bench.results import ResultsWriter
 from bench.timing import build_memory_bytes, time_batch, time_build
 from indexes import ALL_INDEXES, make_index
 from loaders.spotify import key_value_pairs, load_tracks
+from datagen.synthetic import point_queries
 
 SEED = 4300
 
@@ -104,10 +105,61 @@ def e1_build(writer, tracks, reps):
                 )
 
 
+def e2_point(writer, tracks, reps):
+    """E2: How does point-lookup cost grow with n, for hits and for misses?
+
+    Minimum design: track_id; the same sizes as E1; point_queries with hit rates 1.0 and 0.0
+    """
+    # Get every (track_id, row number) pair, in the same order as the file
+    pairs = key_value_pairs(tracks, "track_id")
+
+    # Same sizes as E1
+    for n in [1000, 2000, 5000, 10000, 20000, 40000, 80000, 114000]:
+        # Use only the first n songs
+        data = pairs[:n]
+
+        # Pull out just the track IDs
+        keys = [key for key, value in data]
+
+        # 500 that find a song (hits) and 500 that find nothing (misses)
+        # 500 matches the interns' example
+        hits = point_queries(keys, 500, 1.0, seed=SEED)
+        misses = point_queries(keys, 500, 0.0, seed=SEED)
+
+        # Test each of the 7 indexes
+        for name in ALL_INDEXES:
+            # Build the index once, not timing build
+            index = make_index(name)
+            for key, value in data:
+                index.insert(key, value)
+
+            # Repeat the timing to see variation
+            for rep in range(reps):
+                # Time the hits
+                index.reset_stats()
+                ns = time_batch(index.search, hits)
+                writer.record(
+                    index, experiment="E2_point", dataset="spotify",
+                    key_column="track_id", insert_order="file",
+                    n_keys=n, operation="point_hit", operation_param=1.0,
+                    n_ops=len(hits), rep=rep, total_ns=ns,
+                )
+
+                # Time the misses
+                index.reset_stats()
+                ns = time_batch(index.search, misses)
+                writer.record(
+                    index, experiment="E2_point", dataset="spotify",
+                    key_column="track_id", insert_order="file",
+                    n_keys=n, operation="point_miss", operation_param=0.0,
+                    n_ops=len(misses), rep=rep, total_ns=ns,
+                )
+
 # Register experiments here: name -> function(writer, tracks, reps).
 EXPERIMENTS: dict[str, Callable[[ResultsWriter, list[dict], int], None]] = {
     "example": example_point_lookups,
     "E1_build": e1_build,  # E1: build cost and memory as n grows
+    "E2_point": e2_point,  # E2: hit and miss cost as n grows
 }
 
 
