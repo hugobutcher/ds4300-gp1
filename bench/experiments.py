@@ -28,7 +28,7 @@ from bench.results import ResultsWriter
 from bench.timing import build_memory_bytes, time_batch, time_build
 from indexes import ALL_INDEXES, make_index
 from loaders.spotify import key_value_pairs, load_tracks
-from datagen.synthetic import point_queries
+from datagen.synthetic import point_queries, range_queries
 
 SEED = 4300
 
@@ -155,11 +155,48 @@ def e2_point(writer, tracks, reps):
                     n_ops=len(misses), rep=rep, total_ns=ns,
                 )
 
+
+def e3_range(writer, tracks, reps):
+    """E3: How does range-query cost depend on how much of the data the range covers?
+
+    Minimum design: tempo, all 114k rows; selectivities 0.0001, 0.001, 0.01, 0.05, 0.1, 0.25
+    """
+    # Get every (tempo, row number) pair, in the same order as the file
+    pairs = key_value_pairs(tracks, "tempo")
+
+    # Pull out the tempos
+    keys = [key for key, value in pairs]
+
+    for name in ALL_INDEXES:
+        # Build the index once, not timing build
+        index = make_index(name)
+        for key, value in pairs:
+            index.insert(key, value)
+
+        # Try each range width
+        for selectivity in [0.0001, 0.001, 0.01, 0.05, 0.1, 0.25]:
+            # 200 ranges of this width, same batch size as CORE
+            ranges = range_queries(keys, 200, selectivity, seed=SEED)
+
+            # Repeat the timing to see variation
+            for rep in range(reps):
+                # Time the ranges
+                index.reset_stats()
+                ns = time_batch(lambda r: index.range_search(r[0], r[1]), ranges)
+                writer.record(
+                    index, experiment="E3_range", dataset="spotify",
+                    key_column="tempo", insert_order="file",
+                    n_keys=len(pairs), operation="range", operation_param=selectivity,
+                    n_ops=len(ranges), rep=rep, total_ns=ns,
+                )
+
+
 # Register experiments here: name -> function(writer, tracks, reps).
 EXPERIMENTS: dict[str, Callable[[ResultsWriter, list[dict], int], None]] = {
     "example": example_point_lookups,
     "E1_build": e1_build,  # E1: build cost and memory as n grows
     "E2_point": e2_point,  # E2: hit and miss cost as n grows
+    "E3_range": e3_range,  # E3: range cost as the range widens
 }
 
 
