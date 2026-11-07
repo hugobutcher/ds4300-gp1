@@ -28,7 +28,7 @@ from bench.results import ResultsWriter
 from bench.timing import build_memory_bytes, time_batch, time_build
 from indexes import ALL_INDEXES, make_index
 from loaders.spotify import key_value_pairs, load_tracks
-from datagen.synthetic import point_queries, range_queries
+from datagen.synthetic import point_queries, range_queries, prefix_queries
 
 SEED = 4300
 
@@ -191,12 +191,49 @@ def e3_range(writer, tracks, reps):
                 )
 
 
+def e4_prefix(writer, tracks, reps):
+    """E4: How does prefix-search cost depend on prefix length?
+
+    Minimum design: track_name; prefix lengths 1 through 5
+    """
+    # Get every (track_name, row number) pair, in the same order as the file
+    pairs = key_value_pairs(tracks, "track_name")
+
+    # Pull the track names
+    keys = [key for key, value in pairs]
+
+    # Test each of the 7 indexes
+    for name in ALL_INDEXES:
+        # Build the index once, not timing build
+        index = make_index(name)
+        for key, value in pairs:
+            index.insert(key, value)
+
+        # Try each prefix length.
+        # Essentially like typing 1 to 5 letters
+        for length in [1, 2, 3, 4, 5]:
+            # 200 prefixes of this length, same batch size as CORE
+            prefixes = prefix_queries(keys, 200, length, seed=SEED)
+
+            # Repeat the timing to see variation
+            for rep in range(reps):
+                # Time the prefix searches
+                index.reset_stats()
+                ns = time_batch(index.prefix_search, prefixes)
+                writer.record(
+                    index, experiment="E4_prefix", dataset="spotify",
+                    key_column="track_name", insert_order="file",
+                    n_keys=len(pairs), operation="prefix", operation_param=length,
+                    n_ops=len(prefixes), rep=rep, total_ns=ns,
+                )
+
 # Register experiments here: name -> function(writer, tracks, reps).
 EXPERIMENTS: dict[str, Callable[[ResultsWriter, list[dict], int], None]] = {
     "example": example_point_lookups,
     "E1_build": e1_build,  # E1: build cost and memory as n grows
     "E2_point": e2_point,  # E2: hit and miss cost as n grows
     "E3_range": e3_range,  # E3: range cost as the range widens
+    "E4_prefix": e4_prefix,  # E4: prefix cost as it gets longer
 }
 
 
