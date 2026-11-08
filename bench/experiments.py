@@ -273,7 +273,76 @@ def e5_order(writer, tracks, reps):
                         key_column="random_8char", insert_order=order,
                         n_keys=n, operation="point_hit", operation_param=1.0,
                         n_ops=len(hits), rep=rep, total_ns=ns,
-                    )           
+                    )         
+
+
+def e6_bplus_order(writer, tracks, reps):
+    """E6: What B+ tree order is best, and does the answer depend on the operation?
+
+    Minimum design: bplus_tree only; orders 3, 4, 8, 16, 32, 64, 128, 256, 512; build, point
+    lookups (E2 design), and ranges (E3 design at selectivity 0.01)
+    """
+    # Track IDs for the build and lookups, like E2
+    id_pairs = key_value_pairs(tracks, "track_id")
+    id_keys = [key for key, value in id_pairs]
+    hits = point_queries(id_keys, 500, 1.0, seed=SEED)
+    misses = point_queries(id_keys, 500, 0.0, seed=SEED)
+
+    # Tempos for the ranges, like E3 at 0.01
+    tempo_pairs = key_value_pairs(tracks, "tempo")
+    tempo_keys = [key for key, value in tempo_pairs]
+    ranges = range_queries(tempo_keys, 200, 0.01, seed=SEED)
+
+    # Try each B+ tree order
+    for order in [3, 4, 8, 16, 32, 64, 128, 256, 512]:
+        # Repeat the timing to see variation
+        for rep in range(reps):
+            # Fresh tree every time then time build
+            index = make_index("bplus_tree", order=order)
+            ns = time_build(index, id_pairs)
+            writer.record(
+                index, experiment="E6_bplus_order", dataset="spotify",
+                key_column="track_id", insert_order="file",
+                n_keys=len(id_pairs), operation="build", operation_param="",
+                n_ops=len(id_pairs), rep=rep, total_ns=ns,
+                height=index.structure_info().get("height", ""),
+            )
+
+            # Time the hits 
+            index.reset_stats()
+            ns = time_batch(index.search, hits)
+            writer.record(
+                index, experiment="E6_bplus_order", dataset="spotify",
+                key_column="track_id", insert_order="file",
+                n_keys=len(id_pairs), operation="point_hit", operation_param=1.0,
+                n_ops=len(hits), rep=rep, total_ns=ns,
+            )
+
+            # Time the misses 
+            index.reset_stats()
+            ns = time_batch(index.search, misses)
+            writer.record(
+                index, experiment="E6_bplus_order", dataset="spotify",
+                key_column="track_id", insert_order="file",
+                n_keys=len(id_pairs), operation="point_miss", operation_param=0.0,
+                n_ops=len(misses), rep=rep, total_ns=ns,
+            )
+
+        # Tempo tree with this order, not timing build
+        index = make_index("bplus_tree", order=order)
+        for key, value in tempo_pairs:
+            index.insert(key, value)
+
+        # Time the ranges
+        for rep in range(reps):
+            index.reset_stats()
+            ns = time_batch(lambda r: index.range_search(r[0], r[1]), ranges)
+            writer.record(
+                index, experiment="E6_bplus_order", dataset="spotify",
+                key_column="tempo", insert_order="file",
+                n_keys=len(tempo_pairs), operation="range", operation_param=0.01,
+                n_ops=len(ranges), rep=rep, total_ns=ns,
+            )  
 
 
 # Register experiments here: name -> function(writer, tracks, reps).
@@ -284,6 +353,7 @@ EXPERIMENTS: dict[str, Callable[[ResultsWriter, list[dict], int], None]] = {
     "E3_range": e3_range,  # E3: range cost as the range widens
     "E4_prefix": e4_prefix,  # E4: prefix cost as it gets longer
     "E5_order": e5_order,  # E5: does arrival order matter
+    "E6_bplus_order": e6_bplus_order,  # E6: optimal B+ tree order
 }
 
 
