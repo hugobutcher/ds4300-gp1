@@ -28,7 +28,7 @@ from bench.results import ResultsWriter
 from bench.timing import build_memory_bytes, time_batch, time_build
 from indexes import ALL_INDEXES, make_index
 from loaders.spotify import key_value_pairs, load_tracks
-from datagen.synthetic import point_queries, range_queries, prefix_queries
+from datagen.synthetic import point_queries, range_queries, prefix_queries, arrange, random_keys
 
 SEED = 4300
 
@@ -227,6 +227,55 @@ def e4_prefix(writer, tracks, reps):
                     n_ops=len(prefixes), rep=rep, total_ns=ns,
                 )
 
+
+def e5_order(writer, tracks, reps):
+    """E5: Does the order keys arrive in matter?
+
+    Minimum design: Synthetic keys from random_keys, at least 3 sizes up to 100,000; all four
+    arrange orders. Record build time, lookup time, height, rotations and splits.
+    """
+    # Try each size, up to 100,000
+    for n in [1000, 10000, 100000]:
+        # Make n random keys
+        keys = random_keys(n, seed=SEED)
+
+        # 500 lookups that find a key, same as E2
+        hits = point_queries(keys, 500, 1.0, seed=SEED)
+
+        # Try each arrival order
+        for order in ["random", "sorted", "reversed", "nearly_sorted"]:
+            # Put the keys in this order and give each a row number
+            ordered = arrange(keys, order, seed=SEED)
+            pairs = [(key, i) for i, key in enumerate(ordered)]
+
+            # Test each of the 7 indexes
+            for name in ALL_INDEXES:
+                # Repeat the timing to see variation
+                for rep in range(reps):
+                    # Fresh index every time, then time the build
+                    index = make_index(name)
+                    ns = time_build(index, pairs)
+
+                    # Save the build, rotations and splits get filled in automatically
+                    writer.record(
+                        index, experiment="E5_order", dataset="synthetic",
+                        key_column="random_8char", insert_order=order,
+                        n_keys=n, operation="build", operation_param="",
+                        n_ops=n, rep=rep, total_ns=ns,
+                        height=index.structure_info().get("height", ""),
+                    )
+
+                    # Time the lookups on the same index
+                    index.reset_stats()
+                    ns = time_batch(index.search, hits)
+                    writer.record(
+                        index, experiment="E5_order", dataset="synthetic",
+                        key_column="random_8char", insert_order=order,
+                        n_keys=n, operation="point_hit", operation_param=1.0,
+                        n_ops=len(hits), rep=rep, total_ns=ns,
+                    )           
+
+
 # Register experiments here: name -> function(writer, tracks, reps).
 EXPERIMENTS: dict[str, Callable[[ResultsWriter, list[dict], int], None]] = {
     "example": example_point_lookups,
@@ -234,6 +283,7 @@ EXPERIMENTS: dict[str, Callable[[ResultsWriter, list[dict], int], None]] = {
     "E2_point": e2_point,  # E2: hit and miss cost as n grows
     "E3_range": e3_range,  # E3: range cost as the range widens
     "E4_prefix": e4_prefix,  # E4: prefix cost as it gets longer
+    "E5_order": e5_order,  # E5: does arrival order matter
 }
 
 
