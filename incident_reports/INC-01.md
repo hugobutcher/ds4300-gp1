@@ -34,7 +34,7 @@ Comparisons per lookup came out to about half the number of distinct keys. That'
 
 `indexes/sorted_list.py`, `SortedListIndex.search`, lines 53–65 of the original file. The method loops through `self._keys` from the start and stops early only once it passes where the key would be. The comment says this lets it "stop as soon as we have passed the place where key would be," which is true, but on average it still looks at half the list.
 
-The class already has `_bisect_left` (lines 27–41), which finds a key's position in O(log n). `insert` and `range_search` both use it, but `search` never did. The answers were still right because scanning a sorted list finds the same key. It just checks far more keys to get there.
+The class already has `_bisect_left` (lines 27–42), which finds a key's position in O(log n). `insert` and `range_search` both use it, but `search` never did. The answers were still right because scanning a sorted list finds the same key. It just checks far more keys to get there.
 
 ## Fix
 
@@ -66,7 +66,7 @@ Commit: `8a18fc0`. Diff: `git diff 65a8adf..8a18fc0 -- indexes/sorted_list.py`.
 ## Verification
 
 - `make test` passes after the change.
-- On synthetic keys with 500 hit lookups, comparisons per lookup dropped from 527 to 10.0 at n = 1,000, from 4,982 to 13.4 at n = 10,000, and from 50,556 to 16.7 at n = 100,000. That's right in line with log2(n). Counters are the same on any machine, so these hold everywhere.
+- On synthetic keys (E5 `point_hit`, 500 hit lookups, luke-mbp16, before `65a8adf`, after `ccf1a10`), comparisons per lookup dropped from 509.0 to 10.0 at n = 1,000, from 4,879.7 to 13.4 at n = 10,000, and from 49,516.0 to 16.7 at n = 100,000. The counts are identical for all four arrival orders. That's right in line with log2(n). Counters are the same on any machine, so these hold everywhere.
 - Same machine and workload (E2 `point_hit`, luke-mbp16, before `65a8adf`, after `ccf1a10`, median of 5 reps):
 
 | n | comparisons per lookup (before → after) | sorted_list ns per lookup (before → after) | ref_bisect ns per lookup (after) |
@@ -75,7 +75,7 @@ Commit: `8a18fc0`. Diff: `git diff 65a8adf..8a18fc0 -- indexes/sorted_list.py`.
 | 10,000 | 4,780.3 → 13.3 | 260,299 → 1,597 | 447 |
 | 114,000 | 46,118.9 → 16.5 | 3,448,541 → 3,783 | 1,518 |
 
-At n = 114,000 a lookup is now about 900 times faster, and 16.5 comparisons per lookup matches log2(89,741) ≈ 16.5. The fixed sorted list is still about 2.5–3.5 times slower than `ref_bisect`. That gap is the cost of running the same binary search in Python instead of C, not a bug.
+At n = 114,000 a lookup is now about 900 times faster, and 16.5 comparisons per lookup matches log2(89,741) ≈ 16.5. The fixed sorted list is still about 2.5–3.6 times slower than `ref_bisect`. That gap is the cost of running the same binary search in Python instead of C, not a bug.
 
 ## Impact on recommendations
 

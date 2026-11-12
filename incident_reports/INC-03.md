@@ -6,7 +6,7 @@ Both AVL rotation methods recalculated the new parent's height before its child'
 
 ## Detection
 
-We saw it in E5 (insert order, synthetic keys). The `rotations` counter for the AVL tree at n = 100,000 was over a million, more than 10 per insert. A working AVL tree does at most one rebalance per insert (one single rotation, or a double rotation that counts as two), so it should stay at or under about one rotation per insert. The `height` from `structure_info()` was also above the maximum height an AVL tree can have. E1 backed this up: the AVL tree had the slowest build of any index (about 13,400 ns per key at n = 114,000).
+We saw it in E5 (insert order, synthetic keys). The `rotations` counter for the AVL tree at n = 100,000 was over a million, more than 10 per insert. A working AVL tree does at most one rebalance per insert (one single rotation, or a double rotation that counts as two), so it should stay at or under about one rotation per insert. The `height` from `structure_info()` was also above the maximum height an AVL tree can have. E1 backed this up: the AVL tree had the second-slowest build of any index (about 13,400 ns per key at n = 114,000), behind only the hash table, which had its own bug (INC-02).
 
 ## Expected vs. observed
 
@@ -14,7 +14,7 @@ An AVL tree's height is at most about 1.44·log2(n + 2). Inserting keys in sorte
 
 What we measured (E5 `build`, luke-mbp16, code_version `65a8adf`, median of 5 reps):
 
-| n | order | rotations | rotations per insert | height | perfect height | AVL max (1.44·log2 n) |
+| n | order | rotations | rotations per insert | height | perfect height | AVL max (1.44·log2(n+2)) |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1,000 | random | 6,638 | 6.6 | 14 | 10 | 14.4 |
 | 1,000 | nearly_sorted | 6,176 | 6.2 | 15 | 10 | 14.4 |
@@ -70,13 +70,13 @@ Commit: `0fb63d9`. Diff: `git diff 65a8adf..0fb63d9 -- indexes/avl_tree.py`.
 ## Verification
 
 - `make test` passes after the change.
-- On synthetic keys (counters and heights are the same on any machine):
+- On synthetic keys (E5 `build`, luke-mbp16, before `65a8adf`, after `ccf1a10`; counters and heights are the same on any machine):
 
 | n | rotations, random order (before → after) | height, random (before → after) | height, sorted (before → after) |
 | --- | --- | --- | --- |
-| 1,000 | 6,283 → 698 | 14 → 12 | 14 → 10 |
-| 10,000 | 102,999 → 6,964 | 20 → 16 | 17 → 14 |
-| 100,000 | 1,468,521 → 70,101 | 28 → 20 | 21 → 17 |
+| 1,000 | 6,638 → 679 | 14 → 12 | 14 → 10 |
+| 10,000 | 101,983 → 7,036 | 19 → 16 | 17 → 14 |
+| 100,000 | 1,465,504 → 69,760 | 24 → 20 | 21 → 17 |
 
 After the fix, sorted input builds a perfectly balanced tree and random input stays under the AVL maximum.
 
@@ -90,11 +90,11 @@ After the fix, sorted input builds a perfectly balanced tree and random input st
 | 100,000 | reversed | 11.4 → 1.0 | 21 → 17 | 17 | 11,263 → 8,425 |
 | 100,000 | nearly_sorted | 10.4 → 1.2 | 25 → 20 | 17 | 12,290 → 9,415 |
 
-Every height is now under the AVL maximum (23.9 at n = 100,000), and sorted and reversed input give the perfect height at every n. Rotations per insert no longer grow with n. They sit at about 0.7 for random input and 1.0–1.2 for sorted, reversed, and nearly sorted input, which fits the textbook behavior: sorted input triggers about one rotation per insert, and the swapped keys in nearly sorted input add a few double rotations. Build time per key dropped by about 1.3–2 times, with the biggest gain on random input at n = 100,000 (16,204 → 7,980 ns).
+Every height is now under the AVL maximum (23.9 at n = 100,000), and sorted and reversed input give the perfect height at every n. Rotations per insert no longer grow with n. They sit at about 0.7 for random input and 1.0–1.2 for sorted, reversed, and nearly sorted input, which fits the textbook behavior: sorted input triggers about one rotation per insert, and the swapped keys in nearly sorted input add a few double rotations. Build time per key dropped by about 1.2–2 times, with the biggest gain on random input at n = 100,000 (16,204 → 7,980 ns).
 
 ## Impact on recommendations
 
-It probably doesn't change the final pick for any feature, but it changes the comparison. With the bug, the AVL tree had the most expensive build of any index, which would have ruled it out for F4 (catalog import) and made it look worse than it is for F3 (tempo ranges). After the fix it builds much faster and lookups do fewer comparisons, so it's a fair runner-up for F1 and F3. Any comparison between the AVL tree and the B+ tree has to use the fixed numbers.
+It probably doesn't change the final pick for any feature, but it changes the comparison. With the bug, the AVL tree had one of the most expensive builds (second only to the buggy hash table), which would have ruled it out for F4 (catalog import) and made it look worse than it is for F3 (tempo ranges). After the fix it builds much faster and lookups do fewer comparisons, so it's a fair runner-up for F1 and F3. Any comparison between the AVL tree and the B+ tree has to use the fixed numbers.
 
 ## Why the tests didn't catch it
 

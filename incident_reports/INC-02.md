@@ -27,7 +27,7 @@ Resizes went up by about one for every 768 new keys (1,024 buckets times the 0.7
 
 - Figure: `analysis/figures/inc02_hash_table_build.png` (made by the INC-02 cell in `analysis/part_d_incidents.ipynb`).
 - 117 resizes at n = 114,000 lines up exactly with 89,741 distinct keys / 768 ≈ 117, which is what fixed +1,024 steps predict.
-- Lookups weren't affected. E2 comparisons per lookup for the hash table stayed around 1.2–1.4, because the table still kept the load factor under 0.75. Only building was slow.
+- Lookups weren't affected. E2 comparisons per lookup for the hash table stayed around 1.3–1.4 for hits and 0.5–0.7 for misses, because the table still kept the load factor under 0.75. Only building was slow.
 - Ray's E1 runs (ray-pc, code_version `fead48c`) show the same 117 resizes.
 - Rows used: `E1_build`, luke-mbp16, code_version `65a8adf`.
 
@@ -59,7 +59,7 @@ Commit: `6ed4caf`. Diff: `git diff 65a8adf..6ed4caf -- indexes/hash_table.py`.
 ## Verification
 
 - `make test` passes after the change.
-- On synthetic keys in random order, resizes dropped from 131 to 15 at n = 100,000 and from 14 to 11 at n = 10,000. Resizes now grow like log2(n).
+- On synthetic keys in random order (E5 `build`, luke-mbp16, before `65a8adf`, after `ccf1a10`), resizes dropped from 131 to 15 at n = 100,000 and from 14 to 11 at n = 10,000. Resizes now grow like log2(n).
 - Same machine and workload (E1 `build`, luke-mbp16, before `65a8adf`, after `ccf1a10`, median of 5 reps):
 
 | n | resizes (before → after) | hash_table ns per key (before → after) | ref_dict ns per key (after) |
@@ -73,7 +73,7 @@ Build cost per key is now flat (about 800–1,100 ns from n = 1,000 to 114,000),
 
 ## Impact on recommendations
 
-Yes. With the bug, the hash table had fast lookups but one of the slowest builds, which would have knocked it out of F4 (nightly catalog import) and made it a weaker pick for F1 as the catalog grows. After the fix its build cost per key is flat, so it's the obvious pick for F1 (looking up a track by ID). It still can't do F2 or F3 because hashing throws away key order.
+Yes. With the bug, the hash table had fast lookups but one of the slowest builds, which would have knocked it out of F4 (nightly catalog import) and made it a weaker pick for F1 as the catalog grows. After the fix its build cost per key is flat, so it's the obvious pick for F1 (looking up a track by ID). It can still only answer F2 and F3 by scanning every key, because hashing throws away key order.
 
 ## Why the tests didn't catch it
 

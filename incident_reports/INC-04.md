@@ -74,7 +74,7 @@ Commit: `ccf1a10`. Diff: `git diff 65a8adf..ccf1a10 -- indexes/bplus_tree.py`.
 ## Verification
 
 - `make test` passes after the change, and results still come back in key order.
-- On 100,000 synthetic keys at selectivity 0.001 (100 keys per range), comparisons per query dropped from 100,000 to 118 and nodes visited from 4,854 to 9. At n = 10,000 they dropped from 10,000 to 25 comparisons and from 473 to 4 nodes. The work now depends on how many keys are in the range, the same as for the sorted list and AVL tree.
+- On 100,000 synthetic keys at selectivity 0.001 (100 keys per range), comparisons per query dropped from 100,000 to 118 and nodes visited from 4,845 to 8.7. At n = 10,000 they dropped from 10,000 to 24.5 comparisons and from 474 to 3.5 nodes. (These are 200 ranges from `range_queries` on `random_keys`, seed 4300, run on the original and fixed `bplus_tree.py`. They are not in `results/timings.csv`.) The work now depends on how many keys are in the range, the same as for the sorted list and AVL tree.
 - Same machine and workload (E3 `range` on `tempo`, luke-mbp16, before `65a8adf`, after `ccf1a10`, median of 5 reps):
 
 | selectivity | bplus comparisons per query (before → after) | bplus nodes per query (before → after) | bplus ns per query (before → after) | sorted_list ns per query (after) |
